@@ -54,6 +54,10 @@
       outline: 1px solid var(--accent);
       background: rgba(200,245,66,0.08);
     }
+    .schedule-table td.selected {
+      outline: 2px solid var(--accent);
+      outline-offset: -2px;
+    }
     .schedule-table td.filled { color: var(--accent); }
     .schedule-hint {
       font-family: 'Space Mono', monospace;
@@ -342,7 +346,7 @@
         <tbody></tbody>
       </table>
     </div>
-    <p class="schedule-hint">// Haz clic en cualquier casilla para escribir o editar tu horario. Con la casilla seleccionada, elige un color de la barra. Todo se guarda automáticamente en la nube.</p>
+    <p class="schedule-hint">// Clic para editar · Shift+clic selecciona un rango · Ctrl+clic suma/quita casillas · Ctrl+C y Ctrl+V copian y pegan · Supr borra la selección. El color se aplica a todas las casillas seleccionadas. Todo se guarda automáticamente.</p>
 
     <!-- ===== TAREAS ===== -->
     <div style="margin-top: 4rem;">
@@ -415,6 +419,10 @@
     const PALETTE = ['#12bd92', '#4fc3f7', '#3583a7', '#a05fd0', '#f06292', '#e05555', '#e08a3a', '#e0b83a'];
     let activeCell = null;
     let scheduleData = {};
+    let selectedCells = new Set();
+    let anchorCell = null;
+    let cellMap = {};
+    let clipboard = [];
 
     let tasks = [];
     let notifState = {};
@@ -475,17 +483,150 @@
         s.title = color;
         s.addEventListener('mousedown', e => e.preventDefault());
         s.addEventListener('click', () => {
-          if (!activeCell) return;
-          applyCellColor(activeCell, color);
+          const targets = selectedCells.size ? Array.from(selectedCells) : (activeCell ? [activeCell] : []);
+          if (!targets.length) return;
+          targets.forEach(td => {
+            applyCellColor(td, color);
+            saveCell(td);
+          });
           highlightActiveSwatch(color);
         });
         bar.appendChild(s);
       });
       document.querySelector('#color-bar .swatch-none').addEventListener('mousedown', e => e.preventDefault());
       document.querySelector('#color-bar .swatch-none').addEventListener('click', () => {
-        if (!activeCell) return;
-        applyCellColor(activeCell, null);
+        const targets = selectedCells.size ? Array.from(selectedCells) : (activeCell ? [activeCell] : []);
+        if (!targets.length) return;
+        targets.forEach(td => {
+          applyCellColor(td, null);
+          saveCell(td);
+        });
         highlightActiveSwatch('');
+      });
+    }
+
+    async function saveCell(td) {
+      const val = td.textContent.trim();
+      const color = td.dataset.color || null;
+      const dia = td.dataset.day;
+      const hora = parseInt(td.dataset.hora, 10);
+      td.classList.toggle('filled', !!val);
+      try {
+        if (val || color) {
+          const payload = { dia, hora, contenido: val };
+          const hadColor = td.dataset.savedColor || '';
+          if (hadColor || color) payload.color = color;
+          const { error } = await db.from('horario')
+            .upsert(payload, { onConflict: 'dia,hora' });
+          if (error) throw error;
+          td.dataset.savedColor = color || '';
+        } else {
+          const { error } = await db.from('horario')
+            .delete().eq('dia', dia).eq('hora', hora);
+          if (error) throw error;
+          td.dataset.savedColor = '';
+        }
+        showApiError(false);
+      } catch (e) {
+        showApiError(true, errorMsg(e));
+      }
+    }
+
+    function setSelected(td) {
+      selectedCells.forEach(c => c.classList.remove('selected'));
+      selectedCells.clear();
+      selectedCells.add(td);
+      td.classList.add('selected');
+      anchorCell = td;
+      activeCell = td;
+      highlightActiveSwatch(td.dataset.color || '');
+    }
+
+    function toggleSelected(td) {
+      if (selectedCells.has(td)) {
+        selectedCells.delete(td);
+        td.classList.remove('selected');
+      } else {
+        selectedCells.add(td);
+        td.classList.add('selected');
+      }
+      anchorCell = td;
+      activeCell = td;
+      highlightActiveSwatch(td.dataset.color || '');
+    }
+
+    function selectRange(td) {
+      const a = anchorCell || activeCell || td;
+      const r1 = parseInt(a.dataset.hora, 10), r2 = parseInt(td.dataset.hora, 10);
+      const c1 = parseInt(a.dataset.col, 10), c2 = parseInt(td.dataset.col, 10);
+      selectedCells.forEach(c => c.classList.remove('selected'));
+      selectedCells.clear();
+      for (let r = Math.min(r1, r2); r <= Math.max(r1, r2); r++) {
+        for (let c = Math.min(c1, c2); c <= Math.max(c1, c2); c++) {
+          const cell = cellMap[r + '-' + c];
+          if (cell) {
+            selectedCells.add(cell);
+            cell.classList.add('selected');
+          }
+        }
+      }
+      activeCell = td;
+      highlightActiveSwatch(td.dataset.color || '');
+    }
+
+    function clearSelection() {
+      selectedCells.forEach(c => c.classList.remove('selected'));
+      selectedCells.clear();
+      activeCell = null;
+    }
+
+    function copySelection() {
+      const cells = Array.from(selectedCells);
+      if (!cells.length) return;
+      const rows = cells.map(c => parseInt(c.dataset.hora, 10));
+      const cols = cells.map(c => parseInt(c.dataset.col, 10));
+      const rMin = Math.min(...rows), rMax = Math.max(...rows);
+      const cMin = Math.min(...cols), cMax = Math.max(...cols);
+      clipboard = [];
+      const lines = [];
+      for (let r = rMin; r <= rMax; r++) {
+        const rowArr = [];
+        const lineParts = [];
+        for (let c = cMin; c <= cMax; c++) {
+          const td = cellMap[r + '-' + c];
+          const contenido = td ? td.textContent.trim() : '';
+          const color = td ? (td.dataset.color || '') : '';
+          rowArr.push({ contenido, color });
+          lineParts.push(contenido);
+        }
+        clipboard.push(rowArr);
+        lines.push(lineParts.join('\t'));
+      }
+      try { navigator.clipboard.writeText(lines.join('\n')); } catch (err) { }
+    }
+
+    function pasteSelection() {
+      if (!clipboard.length || !selectedCells.size) return;
+      const cells = Array.from(selectedCells);
+      const rows = cells.map(c => parseInt(c.dataset.hora, 10));
+      const cols = cells.map(c => parseInt(c.dataset.col, 10));
+      const rMin = Math.min(...rows), cMin = Math.min(...cols);
+      const isSingle = clipboard.length === 1 && clipboard[0].length === 1;
+      cells.forEach(td => {
+        let src;
+        if (isSingle) {
+          src = clipboard[0][0];
+        } else {
+          const dr = parseInt(td.dataset.hora, 10) - rMin;
+          const dc = parseInt(td.dataset.col, 10) - cMin;
+          src = (clipboard[dr] && clipboard[dr][dc]) ? clipboard[dr][dc] : null;
+        }
+        if (src) {
+          td.textContent = src.contenido;
+          td.classList.toggle('filled', !!src.contenido);
+          applyCellColor(td, src.color || null);
+          saveCell(td);
+        }
       });
     }
 
@@ -507,6 +648,10 @@
         showApiError(true);
       }
 
+      cellMap = {};
+      selectedCells.clear();
+      anchorCell = null;
+
       const tbody = document.querySelector('#schedule tbody');
       tbody.innerHTML = '';
       for (let h = START_HOUR; h <= END_HOUR; h++) {
@@ -516,7 +661,7 @@
         tdTime.textContent = h + ':00 - ' + (h + 1) + ':00';
         tr.appendChild(tdTime);
 
-        DAYS.forEach(d => {
+        DAYS.forEach((d, ci) => {
           const key = d + '-' + h;
           const cell = schedule[key];
           const td = document.createElement('td');
@@ -525,40 +670,66 @@
           if (cell) td.classList.add('filled');
           if (cell && cell.color) applyCellColor(td, cell.color);
           td.dataset.savedColor = (cell && cell.color) ? cell.color : '';
+          td.dataset.day = d;
+          td.dataset.hora = h;
+          td.dataset.col = ci;
+          cellMap[h + '-' + ci] = td;
+
+          td.addEventListener('mousedown', e => {
+            if (e.shiftKey || e.ctrlKey || e.metaKey) e.preventDefault();
+          });
+
+          td.addEventListener('click', e => {
+            if (e.shiftKey) { selectRange(td); }
+            else if (e.ctrlKey || e.metaKey) { toggleSelected(td); }
+            else { setSelected(td); }
+          });
 
           td.addEventListener('focus', () => {
             activeCell = td;
+            if (!selectedCells.has(td)) {
+              selectedCells.forEach(c => c.classList.remove('selected'));
+              selectedCells.clear();
+              selectedCells.add(td);
+              td.classList.add('selected');
+              anchorCell = td;
+            }
             highlightActiveSwatch(td.dataset.color || '');
           });
 
-          td.addEventListener('blur', async () => {
-            const val = td.textContent.trim();
-            td.classList.toggle('filled', !!val);
-            try {
-              if (val) {
-                const payload = { dia: d, hora: h, contenido: val };
-                const hadColor = td.dataset.savedColor || '';
-                const nowColor = td.dataset.color || '';
-                if (hadColor || nowColor) payload.color = nowColor || null;
-                const { error } = await db.from('horario')
-                  .upsert(payload, { onConflict: 'dia,hora' });
-                if (error) throw error;
-                td.dataset.savedColor = nowColor;
-              } else {
-                const { error } = await db.from('horario')
-                  .delete().eq('dia', d).eq('hora', h);
-                if (error) throw error;
-              }
-              showApiError(false);
-            } catch (e) {
-              showApiError(true, errorMsg(e));
-            }
-          });
+          td.addEventListener('blur', () => saveCell(td));
           tr.appendChild(td);
         });
         tbody.appendChild(tr);
       }
     }
+
+    document.addEventListener('keydown', e => {
+      const mod = e.ctrlKey || e.metaKey;
+      const textSel = window.getSelection() ? window.getSelection().toString() : '';
+      if (mod && e.key === 'c' && selectedCells.size && !textSel) {
+        e.preventDefault();
+        copySelection();
+      } else if (mod && e.key === 'v' && selectedCells.size) {
+        e.preventDefault();
+        pasteSelection();
+      } else if (e.key === 'Escape') {
+        clearSelection();
+      } else if (e.key === 'Delete' && selectedCells.size > 1 && !textSel) {
+        e.preventDefault();
+        Array.from(selectedCells).forEach(td => {
+          td.textContent = '';
+          applyCellColor(td, null);
+          saveCell(td);
+        });
+      }
+    });
+
+    document.addEventListener('click', e => {
+      if (!e.target.closest('#schedule') && !e.target.closest('#color-bar')) {
+        clearSelection();
+      }
+    });
 
     // ===================== TAREAS =====================
     function taskDate(t) { return new Date(t.fecha + 'T' + t.hora.slice(0, 5)).getTime(); }
