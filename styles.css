@@ -312,8 +312,26 @@ nav ul a:hover, nav ul a.active {
 }
 
 .card-icon {
-  font-size: 2rem;
-  margin-bottom: 1rem;
+  width: 52px;
+  height: 52px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: rgba(200,245,66,0.04);
+  color: var(--accent);
+  margin-bottom: 1.25rem;
+  transition: border-color 0.25s, color 0.25s, background 0.25s;
+}
+.card-icon svg {
+  width: 26px;
+  height: 26px;
+  stroke: currentColor;
+}
+.card:hover .card-icon {
+  border-color: var(--accent);
+  background: rgba(200,245,66,0.08);
 }
 
 .card-title {

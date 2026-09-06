@@ -1,0 +1,598 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>MM Ingeniería — Persona</title>
+  <link rel="icon" type="image/jpeg" href="logo.jpeg">
+  <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Bebas+Neue&family=IBM+Plex+Sans:wght@300;400;600&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="styles.css"/>
+  <style>
+    /* === HORARIO === */
+    .schedule-wrap {
+      overflow-x: auto;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: var(--surface);
+    }
+    .schedule-table {
+      width: 100%;
+      border-collapse: collapse;
+      min-width: 860px;
+    }
+    .schedule-table th, .schedule-table td {
+      border: 1px solid var(--border);
+      padding: 0.6rem;
+      text-align: center;
+      vertical-align: top;
+    }
+    .schedule-table thead th {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 1.1rem;
+      letter-spacing: 0.08em;
+      color: var(--text);
+      background: #161a16;
+    }
+    .schedule-table .col-time {
+      font-family: 'Space Mono', monospace;
+      font-size: 0.68rem;
+      color: var(--muted);
+      letter-spacing: 0.08em;
+      white-space: nowrap;
+      background: #161a16;
+    }
+    .schedule-table td[contenteditable] {
+      font-size: 0.78rem;
+      color: var(--text);
+      line-height: 1.4;
+      min-height: 2.4rem;
+      cursor: text;
+      transition: background 0.2s;
+    }
+    .schedule-table td[contenteditable]:hover { background: rgba(200,245,66,0.05); }
+    .schedule-table td[contenteditable]:focus {
+      outline: 1px solid var(--accent);
+      background: rgba(200,245,66,0.08);
+    }
+    .schedule-table td.filled { color: var(--accent); }
+    .schedule-hint {
+      font-family: 'Space Mono', monospace;
+      font-size: 0.62rem;
+      color: var(--muted);
+      letter-spacing: 0.05em;
+      margin-top: 0.8rem;
+    }
+
+    /* === TAREAS === */
+    .task-grid {
+      display: grid;
+      grid-template-columns: 1fr 1.4fr;
+      gap: 2rem;
+      align-items: start;
+    }
+    .task-form {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1.5rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.9rem;
+      position: sticky;
+      top: 80px;
+    }
+    .task-form label {
+      font-family: 'Space Mono', monospace;
+      font-size: 0.62rem;
+      color: var(--muted);
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      display: block;
+      margin-bottom: 0.35rem;
+    }
+    .task-form input, .task-form textarea {
+      width: 100%;
+      background: #0d0f0e;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text);
+      font-family: 'IBM Plex Sans', sans-serif;
+      font-size: 0.85rem;
+      padding: 0.6rem 0.75rem;
+      resize: vertical;
+    }
+    .task-form input:focus, .task-form textarea:focus {
+      outline: none;
+      border-color: var(--accent);
+    }
+    .task-form .row-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.75rem;
+    }
+    .btn-add {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+      padding: 0.7rem 1.2rem;
+      background: var(--accent);
+      color: var(--bg);
+      border: none;
+      font-family: 'Space Mono', monospace;
+      font-size: 0.68rem;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      cursor: pointer;
+      border-radius: 8px;
+      font-weight: 700;
+      transition: background 0.2s;
+    }
+    .btn-add:hover { background: #0fae86; }
+
+    .task-list {
+      display: flex;
+      flex-direction: column;
+      gap: 0.9rem;
+    }
+    .task-item {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1rem 1.2rem;
+      display: flex;
+      gap: 1rem;
+      align-items: flex-start;
+      transition: border-color 0.25s;
+    }
+    .task-item:hover { border-color: rgba(200,245,66,0.3); }
+    .task-item.done { opacity: 0.5; }
+    .task-item.done .task-title { text-decoration: line-through; }
+    .task-check {
+      width: 20px;
+      height: 20px;
+      flex-shrink: 0;
+      margin-top: 2px;
+      cursor: pointer;
+      accent-color: var(--accent);
+    }
+    .task-body { flex: 1; min-width: 0; }
+    .task-title { font-size: 0.95rem; font-weight: 600; color: var(--text); margin-bottom: 0.2rem; }
+    .task-note { font-size: 0.8rem; color: var(--muted); line-height: 1.5; margin-bottom: 0.5rem; }
+    .task-when {
+      font-family: 'Space Mono', monospace;
+      font-size: 0.62rem;
+      letter-spacing: 0.08em;
+      color: var(--accent2);
+    }
+    .task-when.soon { color: var(--accent); font-weight: 700; }
+    .task-del {
+      background: none;
+      border: 1px solid var(--border);
+      color: var(--muted);
+      border-radius: 6px;
+      width: 28px;
+      height: 28px;
+      cursor: pointer;
+      font-size: 0.9rem;
+      line-height: 1;
+      flex-shrink: 0;
+      transition: all 0.2s;
+    }
+    .task-del:hover { border-color: #e05555; color: #e05555; }
+    .empty-msg {
+      font-family: 'Space Mono', monospace;
+      font-size: 0.7rem;
+      color: var(--muted);
+      letter-spacing: 0.05em;
+      padding: 1rem;
+      border: 1px dashed var(--border);
+      border-radius: 10px;
+      text-align: center;
+    }
+
+    /* === PRÓXIMAS === */
+    .upcoming {
+      margin-top: 2.5rem;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-left: 3px solid var(--accent);
+      border-radius: 10px;
+      padding: 1.2rem 1.5rem;
+    }
+    .upcoming-title {
+      font-family: 'Space Mono', monospace;
+      font-size: 0.65rem;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: var(--accent);
+      margin-bottom: 0.9rem;
+    }
+    .upcoming-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 1rem;
+      padding: 0.5rem 0;
+      border-bottom: 1px solid var(--border);
+    }
+    .upcoming-item:last-child { border-bottom: none; }
+    .upcoming-name { font-size: 0.85rem; color: var(--text); }
+    .upcoming-count {
+      font-family: 'Space Mono', monospace;
+      font-size: 0.68rem;
+      color: var(--accent);
+      letter-spacing: 0.06em;
+      white-space: nowrap;
+    }
+    .notif-note {
+      font-family: 'Space Mono', monospace;
+      font-size: 0.6rem;
+      color: var(--muted);
+      letter-spacing: 0.05em;
+      margin-top: 0.8rem;
+    }
+
+    /* === AVISO DE CONEXIÓN === */
+    .api-error {
+      display: none;
+      background: var(--surface);
+      border: 1px solid #e05555;
+      border-left: 3px solid #e05555;
+      border-radius: 10px;
+      padding: 1rem 1.5rem;
+      margin-bottom: 2rem;
+      font-family: 'Space Mono', monospace;
+      font-size: 0.7rem;
+      color: #e05555;
+      line-height: 1.7;
+    }
+    .api-error.visible { display: block; }
+
+    @media (max-width: 760px) {
+      .task-grid { grid-template-columns: 1fr; }
+      .task-form { position: static; }
+    }
+  </style>
+</head>
+<body>
+  <nav>
+    <a class="nav-logo" href="index.html">MM<span>.</span>Ingeniería</a>
+    <ul>
+      <li><a href="index.html">Blog</a></li>
+      <li><a href="perfil.html">Perfil</a></li>
+      <li><a href="persona.html" class="active">Persona</a></li>
+      <li><a href="proyectos.html">Proyectos</a></li>
+      <li><a href="programas.html">Programas</a></li>
+      <li><a href="contacto.html">Contacto</a></li>
+    </ul>
+  </nav>
+
+  <section class="hero">
+    <p class="hero-label">// Mi espacio personal</p>
+    <h1>ÁREA<br><em>PERSONAL</em></h1>
+    <div class="hero-line"></div>
+    <p class="hero-sub">Tu horario de estudio, tus tareas y recordatorios. Los datos se guardan en Supabase (nube) y se sincronizan en todos tus dispositivos.</p>
+  </section>
+
+  <div class="section">
+
+    <div class="api-error" id="api-error">
+      <strong>// ERROR DE CONEXIÓN:</strong> No se pudo conectar con la base de datos (Supabase). Verifica tu conexión a internet y que las claves SUPABASE_URL y SUPABASE_ANON_KEY estén configuradas en este archivo.
+    </div>
+
+    <!-- ===== HORARIO ===== -->
+    <p class="section-label">// Organización</p>
+    <h2 class="section-title">Mi horario de estudio</h2>
+    <div class="schedule-wrap">
+      <table class="schedule-table" id="schedule">
+        <thead>
+          <tr><th>Hora</th></tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+    <p class="schedule-hint">// Haz clic en cualquier casilla para escribir o editar tu horario. Se guarda automáticamente en la nube.</p>
+
+    <!-- ===== TAREAS ===== -->
+    <div style="margin-top: 4rem;">
+      <p class="section-label">// Organización</p>
+      <h2 class="section-title">Mis tareas y notas</h2>
+
+      <div class="task-grid">
+        <form class="task-form" id="task-form">
+          <div>
+            <label for="task-title">Tarea / Clase</label>
+            <input id="task-title" type="text" placeholder="Ej: Clase de Cálculo Numérico" required/>
+          </div>
+          <div>
+            <label for="task-note">Nota (opcional)</label>
+            <textarea id="task-note" rows="2" placeholder="Ej: Llevar calculadora y apuntes del capítulo 3"></textarea>
+          </div>
+          <div class="row-2">
+            <div>
+              <label for="task-date">Fecha</label>
+              <input id="task-date" type="date" required/>
+            </div>
+            <div>
+              <label for="task-time">Hora</label>
+              <input id="task-time" type="time" required/>
+            </div>
+          </div>
+          <button class="btn-add" type="submit">+ Agregar tarea</button>
+          <p class="notif-note">// Te recordaré 1 hora antes en este dispositivo (activa las notificaciones cuando el navegador te lo pida).</p>
+        </form>
+
+        <div class="task-list" id="task-list"></div>
+      </div>
+
+      <div class="upcoming" id="upcoming">
+        <div class="upcoming-title">// Próximas actividades</div>
+        <div id="upcoming-list"></div>
+      </div>
+    </div>
+  </div>
+
+  <footer><p>© 2026 <span>MM INGENIERIA</span> · Blog BIM & Construcción · Perú</p></footer>
+  <a class="wa-float" href="https://wa.me/51957860293" target="_blank" title="Escríbeme por WhatsApp">💬</a>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script>
+    // ===================== CONFIGURACIÓN SUPABASE =====================
+    // 1. Crea tu proyecto en https://supabase.com
+    // 2. Ejecuta el archivo supabase/schema.sql en el SQL Editor
+    // 3. Copia aquí la URL y la anon key (Settings → API)
+    const SUPABASE_URL = 'https://bidintbjpgpeyscirxwl.supabase.co';
+    const SUPABASE_ANON_KEY = 'sb_publishable_SRTEcmIyxh0rnHYBZfBpJQ_s9hl5cZq';
+    // ==================================================================
+
+    const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    const DAYS = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
+    const START_HOUR = 7, END_HOUR = 20;
+    const REMIND_MIN = 60; // avisar 1 hora antes
+    const NOTIF_KEY = 'persona_notified'; // estado local por dispositivo
+
+    let tasks = [];
+    let notifState = {};
+    try { notifState = JSON.parse(localStorage.getItem(NOTIF_KEY)) || {}; } catch (e) { notifState = {}; }
+
+    function saveNotifState() { localStorage.setItem(NOTIF_KEY, JSON.stringify(notifState)); }
+
+    function showApiError(show) {
+      document.getElementById('api-error').classList.toggle('visible', show);
+    }
+
+    // ===================== HORARIO =====================
+    async function loadSchedule() {
+      const { data, error } = await db.from('horario').select('*');
+      if (error) throw error;
+      const map = {};
+      (data || []).forEach(row => { map[row.dia + '-' + row.hora] = row.contenido; });
+      return map;
+    }
+
+    async function renderSchedule() {
+      const thead = document.querySelector('#schedule thead tr');
+      thead.innerHTML = '<th class="col-time">Hora</th>';
+      DAYS.forEach(d => {
+        const th = document.createElement('th');
+        th.textContent = d;
+        thead.appendChild(th);
+      });
+
+      let schedule = {};
+      try {
+        schedule = await loadSchedule();
+        showApiError(false);
+      } catch (e) {
+        showApiError(true);
+      }
+
+      const tbody = document.querySelector('#schedule tbody');
+      tbody.innerHTML = '';
+      for (let h = START_HOUR; h <= END_HOUR; h++) {
+        const tr = document.createElement('tr');
+        const tdTime = document.createElement('td');
+        tdTime.className = 'col-time';
+        tdTime.textContent = h + ':00';
+        tr.appendChild(tdTime);
+
+        DAYS.forEach(d => {
+          const key = d + '-' + h;
+          const td = document.createElement('td');
+          td.contentEditable = 'true';
+          td.textContent = schedule[key] || '';
+          if (schedule[key]) td.classList.add('filled');
+
+          td.addEventListener('blur', async () => {
+            const val = td.textContent.trim();
+            td.classList.toggle('filled', !!val);
+            try {
+              if (val) {
+                const { error } = await db.from('horario')
+                  .upsert({ dia: d, hora: h, contenido: val }, { onConflict: 'dia,hora' });
+                if (error) throw error;
+              } else {
+                const { error } = await db.from('horario')
+                  .delete().eq('dia', d).eq('hora', h);
+                if (error) throw error;
+              }
+              showApiError(false);
+            } catch (e) {
+              showApiError(true);
+            }
+          });
+          tr.appendChild(td);
+        });
+        tbody.appendChild(tr);
+      }
+    }
+
+    // ===================== TAREAS =====================
+    function taskDate(t) { return new Date(t.fecha + 'T' + t.hora.slice(0, 5)).getTime(); }
+
+    function fmtCountdown(ms) {
+      if (ms <= 0) return 'Ahora';
+      const mins = Math.floor(ms / 60000);
+      if (mins < 60) return 'en ' + mins + ' min';
+      const h = Math.floor(mins / 60);
+      const m = mins % 60;
+      return 'en ' + h + 'h ' + (m ? m + 'm' : '');
+    }
+
+    function fmtWhen(t) {
+      const d = new Date(t.fecha + 'T' + t.hora.slice(0, 5));
+      const dias = ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
+      const meses = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+      return dias[d.getDay()] + ' ' + d.getDate() + ' ' + meses[d.getMonth()] + ' · ' + t.hora.slice(0, 5);
+    }
+
+    function renderTasks() {
+      const list = document.getElementById('task-list');
+      const upcoming = document.getElementById('upcoming-list');
+      const now = Date.now();
+
+      const pending = tasks.filter(t => !t.hecha).sort((a, b) => taskDate(a) - taskDate(b));
+      const upcomingList = pending.filter(t => taskDate(t) - now > 0).slice(0, 5);
+
+      if (tasks.length === 0) {
+        list.innerHTML = '<div class="empty-msg">// Aún no tienes tareas. Agrega una con el formulario.</div>';
+      } else {
+        list.innerHTML = '';
+        tasks.slice().sort((a, b) => taskDate(a) - taskDate(b)).forEach(t => {
+          const item = document.createElement('div');
+          item.className = 'task-item' + (t.hecha ? ' done' : '');
+          const diff = taskDate(t) - now;
+
+          const check = document.createElement('input');
+          check.type = 'checkbox';
+          check.className = 'task-check';
+          check.checked = t.hecha;
+          check.addEventListener('change', async () => {
+            try {
+              const { error } = await db.from('tareas')
+                .update({ hecha: check.checked }).eq('id', t.id);
+              if (error) throw error;
+              t.hecha = check.checked;
+              showApiError(false);
+            } catch (e) {
+              check.checked = t.hecha;
+              showApiError(true);
+            }
+            renderTasks();
+          });
+
+          const body = document.createElement('div');
+          body.className = 'task-body';
+          body.innerHTML = '<div class="task-title"></div>'
+            + (t.nota ? '<div class="task-note"></div>' : '')
+            + '<div class="task-when"></div>';
+          body.querySelector('.task-title').textContent = t.titulo;
+          if (t.nota) body.querySelector('.task-note').textContent = t.nota;
+          const when = body.querySelector('.task-when');
+          when.textContent = fmtWhen(t) + (t.hecha ? '' : ' · ' + fmtCountdown(diff));
+          if (!t.hecha && diff > 0 && diff <= REMIND_MIN * 60000) when.classList.add('soon');
+
+          const del = document.createElement('button');
+          del.className = 'task-del';
+          del.textContent = '✕';
+          del.title = 'Eliminar';
+          del.addEventListener('click', async () => {
+            try {
+              const { error } = await db.from('tareas').delete().eq('id', t.id);
+              if (error) throw error;
+              showApiError(false);
+            } catch (e) {
+              showApiError(true);
+            }
+            refreshTasks();
+          });
+
+          item.appendChild(check);
+          item.appendChild(body);
+          item.appendChild(del);
+          list.appendChild(item);
+        });
+      }
+
+      if (upcomingList.length === 0) {
+        upcoming.innerHTML = '<div class="empty-msg">// Sin actividades próximas.</div>';
+      } else {
+        upcoming.innerHTML = '';
+        upcomingList.forEach(t => {
+          const div = document.createElement('div');
+          div.className = 'upcoming-item';
+          div.innerHTML = '<span class="upcoming-name"></span><span class="upcoming-count"></span>';
+          div.querySelector('.upcoming-name').textContent = t.titulo;
+          div.querySelector('.upcoming-count').textContent = fmtWhen(t) + ' · ' + fmtCountdown(taskDate(t) - now);
+          upcoming.appendChild(div);
+        });
+      }
+    }
+
+    async function refreshTasks() {
+      const { data, error } = await db.from('tareas').select('*')
+        .order('fecha', { ascending: true })
+        .order('hora', { ascending: true });
+      if (error) { showApiError(true); return; }
+      tasks = data || [];
+      showApiError(false);
+      renderTasks();
+      checkReminders();
+    }
+
+    document.getElementById('task-form').addEventListener('submit', async function (e) {
+      e.preventDefault();
+      const titulo = document.getElementById('task-title').value.trim();
+      const nota = document.getElementById('task-note').value.trim();
+      const fecha = document.getElementById('task-date').value;
+      const hora = document.getElementById('task-time').value;
+      if (!titulo || !fecha || !hora) return;
+      try {
+        const { error } = await db.from('tareas')
+          .insert([{ titulo, nota: nota || null, fecha, hora: hora + ':00' }]);
+        if (error) throw error;
+        showApiError(false);
+      } catch (e2) {
+        showApiError(true);
+      }
+      this.reset();
+      refreshTasks();
+      requestNotify();
+    });
+
+    // ===================== NOTIFICACIONES =====================
+    function requestNotify() {
+      if ('Notification' in window && Notification.permission === 'default') {
+        Notification.requestPermission();
+      }
+    }
+
+    function checkReminders() {
+      if (!('Notification' in window) || Notification.permission !== 'granted') return;
+      const now = Date.now();
+      tasks.forEach(t => {
+        if (t.hecha || notifState[t.id]) return;
+        const diff = taskDate(t) - now;
+        if (diff <= 0) return;
+        if (diff <= REMIND_MIN * 60000) {
+          const mins = Math.max(1, Math.round(diff / 60000));
+          new Notification('⏰ Recordatorio: ' + t.titulo, {
+            body: 'En ' + mins + ' min tienes "' + t.titulo + '".' + (t.nota ? ' Nota: ' + t.nota : '')
+          });
+          notifState[t.id] = true;
+        }
+      });
+      saveNotifState();
+    }
+
+    // ===================== INIT =====================
+    renderSchedule();
+    refreshTasks();
+    requestNotify();
+    setInterval(checkReminders, 15000);
+    setInterval(refreshTasks, 60000);
+  </script>
+</body>
+</html>
