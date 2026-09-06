@@ -19,8 +19,12 @@ create table if not exists horario (
   dia       text not null,
   hora      int  not null,
   contenido text not null default '',
+  color     text,
   primary key (dia, hora)
 );
+
+-- Si la tabla horario ya existía sin la columna color, ejecuta:
+-- alter table horario add column if not exists color text;
 
 -- ---------- SEGURIDAD (RLS) ----------
 -- Uso personal sin login: políticas abiertas para el rol anon.
