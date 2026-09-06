@@ -513,7 +513,7 @@
         const tr = document.createElement('tr');
         const tdTime = document.createElement('td');
         tdTime.className = 'col-time';
-        tdTime.textContent = h + ':00';
+        tdTime.textContent = h + ':00 - ' + (h + 1) + ':00';
         tr.appendChild(tdTime);
 
         DAYS.forEach(d => {
