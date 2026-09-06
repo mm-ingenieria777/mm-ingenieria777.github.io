@@ -693,7 +693,17 @@
 
           td.addEventListener('click', e => {
             if (justDragged) { justDragged = false; return; }
-            if (e.shiftKey) { selectRange(td); }
+            if (e.shiftKey) {
+              if (selectedCells.has(td)) {
+                selectedCells.delete(td);
+                td.classList.remove('selected');
+                anchorCell = td;
+                activeCell = td;
+                highlightActiveSwatch(td.dataset.color || '');
+              } else {
+                selectRange(td);
+              }
+            }
             else if (e.ctrlKey || e.metaKey) { toggleSelected(td); }
             else { setSelected(td); }
           });
