@@ -370,7 +370,7 @@
             </div>
           </div>
           <button class="btn-add" type="submit">+ Agregar tarea</button>
-          <p class="notif-note">// Te recordaré 1 hora antes: por email a tu celular y con notificación del navegador si la página está abierta.</p>
+          <p class="notif-note">// Te recordaré por email (aunque cierres el navegador): 1 semana, 3 días, 1 día, 3 h, 1 h, 30, 15 y 5 min antes. El horario te avisa 1 hora antes de cada clase, cada semana. Con la página abierta también verás notificaciones.</p>
         </form>
 
         <div class="task-list" id="task-list"></div>
@@ -400,10 +400,21 @@
 
     const DAYS = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
     const START_HOUR = 7, END_HOUR = 20;
-    const REMIND_MIN = 60; // avisar 1 hora antes
+    const REMIND_MIN = 60; // resaltado "próximo" en la lista de tareas
     const NOTIF_KEY = 'persona_notified'; // estado local por dispositivo
+    const REMIND_STAGES = [
+      { key: '5m',  mins: 5,     label: 'faltan 5 min' },
+      { key: '15m', mins: 15,    label: 'faltan 15 min' },
+      { key: '30m', mins: 30,    label: 'faltan 30 min' },
+      { key: '1h',  mins: 60,    label: 'falta 1 hora' },
+      { key: '3h',  mins: 180,   label: 'faltan 3 horas' },
+      { key: '1d',  mins: 1440,  label: 'falta 1 día' },
+      { key: '3d',  mins: 4320,  label: 'faltan 3 días' },
+      { key: '7d',  mins: 10080, label: 'falta 1 semana' }
+    ];
     const PALETTE = ['#12bd92', '#4fc3f7', '#3583a7', '#a05fd0', '#f06292', '#e05555', '#e08a3a', '#e0b83a'];
     let activeCell = null;
+    let scheduleData = {};
 
     let tasks = [];
     let notifState = {};
@@ -490,6 +501,7 @@
       let schedule = {};
       try {
         schedule = await loadSchedule();
+        scheduleData = schedule;
         showApiError(false);
       } catch (e) {
         showApiError(true);
@@ -692,18 +704,40 @@
       if (!('Notification' in window) || Notification.permission !== 'granted') return;
       const now = Date.now();
       tasks.forEach(t => {
-        if (t.hecha || notifState[t.id]) return;
+        if (t.hecha) return;
         const diff = taskDate(t) - now;
         if (diff <= 0) return;
-        if (diff <= REMIND_MIN * 60000) {
-          const mins = Math.max(1, Math.round(diff / 60000));
-          new Notification('⏰ Recordatorio: ' + t.titulo, {
-            body: 'En ' + mins + ' min tienes "' + t.titulo + '".' + (t.nota ? ' Nota: ' + t.nota : '')
+        const remMin = diff / 60000;
+        const stage = REMIND_STAGES.find(s => remMin <= s.mins);
+        if (!stage) return;
+        const idxStage = REMIND_STAGES.indexOf(stage);
+        const prev = notifState[t.id] ? REMIND_STAGES.find(s => s.key === notifState[t.id]) : null;
+        const idxLast = prev ? REMIND_STAGES.indexOf(prev) : -1;
+        if (idxStage > idxLast) {
+          new Notification('⏰ ' + stage.label + ': ' + t.titulo, {
+            body: 'Tu tarea "' + t.titulo + '" es ' + fmtWhen(t) + '.' + (t.nota ? ' Nota: ' + t.nota : '')
           });
-          notifState[t.id] = true;
+          notifState[t.id] = stage.key;
         }
       });
+      checkScheduleReminder(now);
       saveNotifState();
+    }
+
+    function checkScheduleReminder(now) {
+      const d = new Date(now);
+      const dayName = DAYS[(d.getDay() + 6) % 7];
+      const nextHour = (d.getHours() + 1) % 24;
+      const cell = scheduleData[dayName + '-' + nextHour];
+      if (cell && cell.contenido) {
+        const cacheKey = 'horario_' + dayName + '_' + nextHour;
+        if (notifState[cacheKey] !== d.toDateString()) {
+          new Notification('⏰ En 1 hora tienes: ' + cell.contenido, {
+            body: 'Tu clase de hoy (' + dayName + ') a las ' + nextHour + ':00 · Horario de estudio'
+          });
+          notifState[cacheKey] = d.toDateString();
+        }
+      }
     }
 
     // ===================== INIT =====================
