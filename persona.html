@@ -324,7 +324,7 @@
   <div class="section">
 
     <div class="api-error" id="api-error">
-      <strong>// ERROR DE CONEXIÓN:</strong> No se pudo conectar con la base de datos (Supabase). Verifica tu conexión a internet y que las claves SUPABASE_URL y SUPABASE_ANON_KEY estén configuradas en este archivo.
+      <span id="api-error-text"><strong>// ERROR DE CONEXIÓN:</strong> No se pudo conectar con la base de datos (Supabase). Verifica tu conexión a internet y que las claves SUPABASE_URL y SUPABASE_ANON_KEY estén configuradas en este archivo.</span>
     </div>
 
     <!-- ===== HORARIO ===== -->
@@ -411,8 +411,17 @@
 
     function saveNotifState() { localStorage.setItem(NOTIF_KEY, JSON.stringify(notifState)); }
 
-    function showApiError(show) {
+    function showApiError(show, msg) {
+      if (msg) document.getElementById('api-error-text').innerHTML = msg;
       document.getElementById('api-error').classList.toggle('visible', show);
+    }
+
+    function errorMsg(e) {
+      const m = ((e && e.message) ? e.message : '') + ' ' + ((e && e.details) ? e.details : '');
+      if (m.indexOf('color') !== -1) {
+        return '<strong>// FALTA UN PASO EN SUPABASE:</strong> ejecuta esto en el SQL Editor de Supabase y dale Run: <code>alter table horario add column if not exists color text;</code>';
+      }
+      return '<strong>// ERROR DE CONEXIÓN:</strong> No se pudo guardar. Verifica tu conexión a internet.';
     }
 
     // ===================== HORARIO =====================
@@ -503,6 +512,7 @@
           td.textContent = cell ? cell.contenido : '';
           if (cell) td.classList.add('filled');
           if (cell && cell.color) applyCellColor(td, cell.color);
+          td.dataset.savedColor = (cell && cell.color) ? cell.color : '';
 
           td.addEventListener('focus', () => {
             activeCell = td;
@@ -515,10 +525,13 @@
             try {
               if (val) {
                 const payload = { dia: d, hora: h, contenido: val };
-                if (td.dataset.color) payload.color = td.dataset.color;
+                const hadColor = td.dataset.savedColor || '';
+                const nowColor = td.dataset.color || '';
+                if (hadColor || nowColor) payload.color = nowColor || null;
                 const { error } = await db.from('horario')
                   .upsert(payload, { onConflict: 'dia,hora' });
                 if (error) throw error;
+                td.dataset.savedColor = nowColor;
               } else {
                 const { error } = await db.from('horario')
                   .delete().eq('dia', d).eq('hora', h);
@@ -526,7 +539,7 @@
               }
               showApiError(false);
             } catch (e) {
-              showApiError(true);
+              showApiError(true, errorMsg(e));
             }
           });
           tr.appendChild(td);
