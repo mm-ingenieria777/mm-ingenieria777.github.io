@@ -65,7 +65,7 @@
 
     /* === PALETA DE COLORES === */
     .color-bar {
-      display: none;
+      display: flex;
       align-items: center;
       gap: 0.55rem;
       flex-wrap: wrap;
@@ -75,7 +75,6 @@
       padding: 0.7rem 1rem;
       margin-bottom: 1rem;
     }
-    .color-bar.visible { display: flex; }
     .color-bar-label {
       font-family: 'Space Mono', monospace;
       font-size: 0.62rem;
@@ -332,7 +331,7 @@
     <p class="section-label">// Organización</p>
     <h2 class="section-title">Mi horario de estudio</h2>
     <div class="color-bar" id="color-bar">
-      <span class="color-bar-label">// Color de la casilla</span>
+      <span class="color-bar-label">// Color de la casilla: haz clic en una casilla y luego elige el color</span>
       <span class="swatch-none" title="Quitar color">✕</span>
     </div>
     <div class="schedule-wrap">
@@ -441,12 +440,7 @@
       td.style.background = 'rgba(' + r + ',' + g + ',' + b + ',0.16)';
     }
 
-    function showColorBar(show) {
-      document.getElementById('color-bar').classList.toggle('visible', show);
-    }
-
-    function highlightActiveSwatch(color) {
-      document.querySelectorAll('#color-bar .swatch').forEach(s => {
+    function highlightActiveSwatch(color) {      document.querySelectorAll('#color-bar .swatch').forEach(s => {
         s.classList.toggle('active', s.dataset.color === color);
       });
     }
@@ -513,11 +507,9 @@
           td.addEventListener('focus', () => {
             activeCell = td;
             highlightActiveSwatch(td.dataset.color || '');
-            showColorBar(true);
           });
 
           td.addEventListener('blur', async () => {
-            setTimeout(() => showColorBar(false), 150);
             const val = td.textContent.trim();
             td.classList.toggle('filled', !!val);
             try {
