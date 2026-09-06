@@ -346,7 +346,7 @@
         <tbody></tbody>
       </table>
     </div>
-    <p class="schedule-hint">// Clic para editar · Shift+clic selecciona un rango · Ctrl+clic suma/quita casillas · Ctrl+C y Ctrl+V copian y pegan · Supr borra la selección. El color se aplica a todas las casillas seleccionadas. Todo se guarda automáticamente.</p>
+    <p class="schedule-hint">// Clic y arrastra para seleccionar un rango (como Excel) · Shift+clic rango · Ctrl+clic suma/quita · Ctrl+C y Ctrl+V copian y pegan · Supr borra la selección. El color se aplica a todas las casillas seleccionadas. Todo se guarda automáticamente.</p>
 
     <!-- ===== TAREAS ===== -->
     <div style="margin-top: 4rem;">
@@ -423,6 +423,8 @@
     let anchorCell = null;
     let cellMap = {};
     let clipboard = [];
+    let dragState = { active: false, dragged: false, startCell: null, startX: 0, startY: 0 };
+    let justDragged = false;
 
     let tasks = [];
     let notifState = {};
@@ -676,10 +678,21 @@
           cellMap[h + '-' + ci] = td;
 
           td.addEventListener('mousedown', e => {
-            if (e.shiftKey || e.ctrlKey || e.metaKey) e.preventDefault();
+            if (e.shiftKey || e.ctrlKey || e.metaKey) {
+              e.preventDefault();
+              dragState.active = false;
+              return;
+            }
+            if (e.button !== 0) return;
+            dragState.active = true;
+            dragState.dragged = false;
+            dragState.startCell = td;
+            dragState.startX = e.clientX;
+            dragState.startY = e.clientY;
           });
 
           td.addEventListener('click', e => {
+            if (justDragged) { justDragged = false; return; }
             if (e.shiftKey) { selectRange(td); }
             else if (e.ctrlKey || e.metaKey) { toggleSelected(td); }
             else { setSelected(td); }
@@ -723,6 +736,24 @@
           saveCell(td);
         });
       }
+    });
+
+    document.addEventListener('mousemove', e => {
+      if (!dragState.active) return;
+      e.preventDefault();
+      if (!dragState.dragged) {
+        if (Math.hypot(e.clientX - dragState.startX, e.clientY - dragState.startY) < 5) return;
+        dragState.dragged = true;
+        setSelected(dragState.startCell);
+      }
+      const td = e.target && e.target.closest ? e.target.closest('td[contenteditable]') : null;
+      if (td) selectRange(td);
+    });
+
+    document.addEventListener('mouseup', () => {
+      if (dragState.active && dragState.dragged) justDragged = true;
+      dragState.active = false;
+      dragState.dragged = false;
     });
 
     document.addEventListener('click', e => {
