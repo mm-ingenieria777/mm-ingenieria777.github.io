@@ -346,7 +346,7 @@
         <tbody></tbody>
       </table>
     </div>
-    <p class="schedule-hint">// Clic y arrastra para seleccionar un rango (como Excel) · Shift+clic rango · Ctrl+clic suma/quita · Ctrl+C y Ctrl+V copian y pegan · Supr borra la selección. El color se aplica a todas las casillas seleccionadas. Todo se guarda automáticamente.</p>
+    <p class="schedule-hint">// Clic y arrastra para seleccionar un rango (como Excel) · Shift+arrastre extiende la selección · Ctrl+arrastre suma/quita casillas · Ctrl+C y Ctrl+V copian y pegan · Supr borra la selección. El color se aplica a todas las casillas seleccionadas. Todo se guarda automáticamente.</p>
 
     <!-- ===== TAREAS ===== -->
     <div style="margin-top: 4rem;">
@@ -423,7 +423,7 @@
     let anchorCell = null;
     let cellMap = {};
     let clipboard = [];
-    let dragState = { active: false, dragged: false, startCell: null, startX: 0, startY: 0 };
+    let dragState = { active: false, dragged: false, mode: 'plain', ctrlAdd: true, startCell: null, startX: 0, startY: 0 };
     let justDragged = false;
 
     let tasks = [];
@@ -678,14 +678,13 @@
           cellMap[h + '-' + ci] = td;
 
           td.addEventListener('mousedown', e => {
-            if (e.shiftKey || e.ctrlKey || e.metaKey) {
-              e.preventDefault();
-              dragState.active = false;
-              return;
-            }
             if (e.button !== 0) return;
+            const mod = e.shiftKey || e.ctrlKey || e.metaKey;
+            if (mod) e.preventDefault();
             dragState.active = true;
             dragState.dragged = false;
+            dragState.mode = mod ? ((e.ctrlKey || e.metaKey) ? 'ctrl' : 'shift') : 'plain';
+            dragState.ctrlAdd = !selectedCells.has(td);
             dragState.startCell = td;
             dragState.startX = e.clientX;
             dragState.startY = e.clientY;
@@ -748,16 +747,44 @@
       }
     });
 
+    function applyCtrlCell(td, add) {
+      if (add) {
+        if (!selectedCells.has(td)) {
+          selectedCells.add(td);
+          td.classList.add('selected');
+        }
+      } else {
+        if (selectedCells.has(td)) {
+          selectedCells.delete(td);
+          td.classList.remove('selected');
+        }
+      }
+      anchorCell = td;
+      activeCell = td;
+      highlightActiveSwatch(td.dataset.color || '');
+    }
+
     document.addEventListener('mousemove', e => {
       if (!dragState.active) return;
       e.preventDefault();
       if (!dragState.dragged) {
         if (Math.hypot(e.clientX - dragState.startX, e.clientY - dragState.startY) < 5) return;
         dragState.dragged = true;
-        setSelected(dragState.startCell);
+        if (dragState.mode === 'plain') {
+          setSelected(dragState.startCell);
+        } else if (dragState.mode === 'shift') {
+          if (!selectedCells.size) setSelected(dragState.startCell);
+        } else {
+          applyCtrlCell(dragState.startCell, dragState.ctrlAdd);
+        }
       }
       const td = e.target && e.target.closest ? e.target.closest('td[contenteditable]') : null;
-      if (td) selectRange(td);
+      if (!td) return;
+      if (dragState.mode === 'ctrl') {
+        applyCtrlCell(td, dragState.ctrlAdd);
+      } else {
+        selectRange(td);
+      }
     });
 
     document.addEventListener('mouseup', () => {
